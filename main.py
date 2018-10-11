@@ -1,10 +1,11 @@
 from flask import Flask
-from flask_restful import reqparse, Api, Resource, abort
+from flask_restful import reqparse, Api, Resource
 
 
 class Converter:
-    col_det = '\n'
-    row_det = '\t'
+    def __init__(self, col_det='\n', row_det='\t'):
+        self.col_det = col_det
+        self.row_det = row_det
 
     def get_data(self, string):
         arr2 = []
@@ -19,7 +20,10 @@ class Converter:
             str_list.append(self.row_det.join(col))
         return self.col_det.join(str_list)
 
-    def is_valid(self, data):
+
+class Validate:
+    @staticmethod
+    def is_valid(data):
         col_count = len(data[0])
         for col in data:
             if col_count != len(col):
@@ -29,13 +33,7 @@ class Converter:
         return False
 
 
-class Data:
-    def __init__(self, data):
-        self.data = data
-
-
 class Sorter:
-
     @staticmethod
     def key(x):
 
@@ -59,34 +57,60 @@ app = Flask(__name__)
 api = Api(app)
 
 parser = reqparse.RequestParser()
-parser.add_argument('data')
+parser.add_argument('string')
+parser.add_argument('row_det')
+parser.add_argument('col_det')
+parser.add_argument('action')
 
 
-class Sort(Resource):
-    def get(self):
+class TableString(Resource):
+    def post(self):
         args = parser.parse_args()
-        string = args['data']
-        if string is None:
-            abort(400)
+        table_string = args['string']
+        action = args['action']
+        col_det = args['col_det']
+        row_det = args['row_det']
 
-        convert = Converter()
-        data = convert.get_data(string)
+        if action == 'sort':
 
-        if not convert.is_valid(data):
-            abort(422)
+            if table_string == "":
+                result = {
+                    'error': True,
+                    'message': 'String is empty',
+                    'string': table_string,
+                    'row_det': row_det,
+                    'col_det': col_det,
+                }
+                return result, 200
+            convert = Converter(col_det=col_det, row_det=row_det)
+            data = convert.get_data(table_string)
 
-        sort = Sorter()
+            if not Validate.is_valid(data):
+                result = {
+                    'error': True,
+                    'message': 'Rows lengths is not equal for columns',
+                    'string': table_string,
+                    'row_det': row_det,
+                    'col_det': col_det,
+                }
+                return result, 200
 
-        sorted_data = sort.sort(data)
+            sort = Sorter()
 
-        sorted_string = convert.get_str(sorted_data)
+            sorted_data = sort.sort(data)
 
-        result = {'data': sorted_string}
+            sorted_string = convert.get_str(sorted_data)
 
-        return result, 200
+            result = {
+                'string': sorted_string,
+                'row_det': row_det,
+                'col_det': col_det,
+            }
+
+            return result, 200
 
 
-api.add_resource(Sort, '/sort')
+api.add_resource(TableString, '/tableString')
 
 if __name__ == '__main__':
     app.run(debug=True)

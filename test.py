@@ -53,5 +53,24 @@ class TestTableStringSorter(unittest.TestCase):
         return self.assertEqual(sorted_string, sorted_string_test)
 
 
+class TestApiSorter(unittest.TestCase):
+
+    def test_table_str_sort(self):
+        import json
+        import requests
+        url = 'http://127.0.0.1:5000/sort'
+        data = {
+            "string": "1\t2a\t3\n4\t53\t6\n7\t8\t9",
+            "row_det": "\t",
+            "col_det": "\n",
+        }
+
+        data = json.dumps(data)
+
+        response = requests.get(url, data=data)
+        print(response.text)
+        return self.assertEqual(None, None)
+
+
 if __name__ == '__main__':
     unittest.main()
