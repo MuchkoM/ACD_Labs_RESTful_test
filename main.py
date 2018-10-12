@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request
 from flask_restful import reqparse, Api, Resource
 
 
@@ -57,57 +57,39 @@ app = Flask(__name__)
 api = Api(app)
 
 parser = reqparse.RequestParser()
-parser.add_argument('string')
-parser.add_argument('row_det')
-parser.add_argument('col_det')
 parser.add_argument('action')
 
 
 class TableString(Resource):
     def post(self):
+        json_data = request.get_json(force=True)
         args = parser.parse_args()
-        table_string = args['string']
         action = args['action']
-        col_det = args['col_det']
-        row_det = args['row_det']
 
-        if action == 'sort':
+        if action != 'sort':
+            json_data['error_message'] = 'Action not define'
+            return json_data, 200
 
-            if table_string == "":
-                result = {
-                    'error': True,
-                    'message': 'String is empty',
-                    'string': table_string,
-                    'row_det': row_det,
-                    'col_det': col_det,
-                }
-                return result, 200
-            convert = Converter(col_det=col_det, row_det=row_det)
-            data = convert.get_data(table_string)
+        table_string = json_data.get('string', None)
+        row_det = json_data.get('row_det', None)
+        col_det = json_data.get('col_det', None)
 
-            if not Validate.is_valid(data):
-                result = {
-                    'error': True,
-                    'message': 'Rows lengths is not equal for columns',
-                    'string': table_string,
-                    'row_det': row_det,
-                    'col_det': col_det,
-                }
-                return result, 200
+        if table_string is None or table_string == "":
+            json_data['error_message'] = 'String is empty or undefined'
+            return json_data, 200
 
-            sort = Sorter()
+        convert = Converter(col_det=col_det, row_det=row_det)
 
-            sorted_data = sort.sort(data)
+        data = convert.get_data(table_string)
 
-            sorted_string = convert.get_str(sorted_data)
+        if not Validate.is_valid(data):
+            json_data['error_message'] = 'Rows lengths is not equal for columns'
+            return json_data, 200
 
-            result = {
-                'string': sorted_string,
-                'row_det': row_det,
-                'col_det': col_det,
-            }
+        sort = Sorter()
 
-            return result, 200
+        json_data['string'] = convert.get_str(sort.sort(data))
+        return json_data, 200
 
 
 api.add_resource(TableString, '/tableString')
