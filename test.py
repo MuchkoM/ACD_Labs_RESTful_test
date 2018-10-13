@@ -1,6 +1,6 @@
 import unittest
 
-from main import Converter, Sorter
+from main import Converter, Sorter, DataMethods
 
 
 class TestConverter(unittest.TestCase):
@@ -10,11 +10,11 @@ class TestConverter(unittest.TestCase):
     data = [['1', '2', '3'], ['4', '5', '6'], ['7', '8', '9']]
 
     def test_str_to_data(self):
-        converted_data = Converter().get_data(self.string)
+        converted_data = Converter().get_table(self.string)
         return self.assertEqual(converted_data, self.data)
 
     def test_data_to_str(self):
-        converted_str = Converter().get_str(self.data)
+        converted_str = Converter().get_string(self.data)
         return self.assertEqual(converted_str, self.string)
 
 
@@ -24,14 +24,14 @@ class TestSorter(unittest.TestCase):
         data = [['11', '22', '31'], ['44', '15', '63'], ['57', '88', '19'], ['88', '99', '99']]
         sorted_data = [['11', '15', '19'], ['44', '22', '31'], ['57', '88', '63'], ['88', '99', '99']]
 
-        test_data = Sorter().sort(data)
+        test_data = Sorter(data).sort()
         return self.assertEqual(sorted_data, test_data)
 
     def test_data_sort2(self):
         data = [['a', 'b', 'c'], ['11', '22', '31'], ['44', '15', '63'], ['-', '88', '19'], ['88', '99', '99']]
         sorted_data = [['11', '15', '19'], ['44', '22', '31'], ['88', '88', '63'], ['-', '99', '99'], ['a', 'b', 'c']]
 
-        test_data = Sorter().sort(data)
+        test_data = Sorter(data).sort()
         return self.assertEqual(sorted_data, test_data)
 
 
@@ -42,15 +42,26 @@ class TestTableStringSorter(unittest.TestCase):
         sorted_string = "1\t8\t3\n4\t53\t6\n7\t2a\t9"
 
         convert = Converter()
-        data = convert.get_data(string)
+        data = convert.get_table(string)
 
-        sort = Sorter()
+        sort = Sorter(data)
 
-        sorted_data = sort.sort(data)
+        sorted_data = sort.sort()
 
-        sorted_string_test = convert.get_str(sorted_data)
+        sorted_string_test = convert.get_string(sorted_data)
 
         return self.assertEqual(sorted_string, sorted_string_test)
+
+
+class TestValidateData(unittest.TestCase):
+    data = [['11', '22', '31'], ['44', '15', '63'], ['57', '88', '19'], ['88', '99', '99']]
+    data2 = [['11', '22', '31'], ['44', '15', '63', '1'], ['57', '88', '19'], ['88', '99', '99']]
+
+    def test_valid1(self):
+        return self.assertEqual(DataMethods.is_valid(self.data), True)
+
+    def test_valid2(self):
+        return self.assertEqual(DataMethods.is_valid(self.data2), False)
 
 
 if __name__ == '__main__':
