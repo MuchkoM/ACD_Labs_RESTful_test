@@ -1,14 +1,15 @@
+import json
 from collections import Iterable
 from copy import deepcopy
 from itertools import groupby
 
-from flask import Flask, request
+from flask import request, Flask, Response
 from flask_restful import Api, Resource
 
 
 class TableStringSortingTask:
     """
-        TableStringSorting performer
+    TableStringSorting performer
     """
 
     def __init__(self, table_string, separator_column=None, separator_row=None):
@@ -235,36 +236,55 @@ class Sorter:
 
 
 app = Flask(__name__)
+
 api = Api(app)
 
 
-class TableStringResource(Resource):
-    def put(self):
-        """ Sorting table in string format from json string_table"""
-        json_data = request.get_json()
+@api.resource('/table_string', methods=["put"])
+class StringSort(Resource):
 
-        table_string = json_data.get('table_string', None)
-        separator_row = json_data.get('separator_row', None)
-        separator_column = json_data.get('separator_column', None)
+    def put(self):
+        """ Sorting table with request data"""
+
+        content_type = request.content_type
+
+        data = dict()
+        code = 200
+        if content_type == 'application/json':
+            data = request.json
+        elif content_type == 'text/plain':
+            data['table_string'] = request.data.decode('utf-8')
+        else:
+            return Response("", status=400, mimetype=content_type)
+
+        table_string = data.get('table_string')
+        separator_row = data.get('separator_row')
+        separator_column = data.get('separator_column')
 
         try:
             task = TableStringSortingTask(table_string=table_string, separator_column=separator_column,
                                           separator_row=separator_row)
             task.perform()
             if task.isSuccess:
-                sorted_table_string = task.result()
+                data['table_string'] = task.result()
             else:
                 raise TableStringException
 
         except TableStringException as e:
-            json_data['message'] = e.message
-            return json_data, e.code
+            data['message'] = e.message
+            code = e.code
 
-        json_data['table_string'] = sorted_table_string
-        return json_data, 200
+        if content_type == 'application/json':
+            result = json.dumps(data)
+        elif content_type == 'text/plain':
+            result = data['table_string'].encode('utf-8')
+        else:
+            result = ""
+            code = 400
+
+        return Response(result, status=code, mimetype=content_type)
 
 
-api.add_resource(TableStringResource, '/table_string')
 if __name__ == '__main__':
     """Start point"""
     app.run(debug=True)
