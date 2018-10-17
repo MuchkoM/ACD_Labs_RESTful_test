@@ -2,7 +2,6 @@ from collections import Iterable
 from copy import deepcopy
 from itertools import groupby
 
-import numpy as np
 from flask import Flask, request
 from flask_restful import Api, Resource
 
@@ -12,7 +11,7 @@ class TableStringSortingTask:
         TableStringSorting performer
     """
 
-    def __init__(self, table_string, separator_column, separator_row):
+    def __init__(self, table_string, separator_column=None, separator_row=None):
         """
         Init task param
         :param table_string: String with table
