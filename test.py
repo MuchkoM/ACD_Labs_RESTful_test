@@ -1,6 +1,6 @@
 import unittest
 
-from main import Converter, Sorter, ArrayTable, TableStringSortingTask
+from main import Converter, Sorter, ArrayTable
 
 
 class TestConverter(unittest.TestCase):
@@ -33,29 +33,6 @@ class TestSorter(unittest.TestCase):
 
         test_data = Sorter().sort(data)
         return self.assertEqual(test_data.to_array(), sorted_data.to_array())
-
-
-class TestTableStringSorter(unittest.TestCase):
-
-    def test_table_str_sort_string(self):
-        string = "a\t2a\t3\nab\t53\t9\nab-\t8\t6"
-        sorted_string = "a\t8\t3\nab\t53\t6\nab-\t2a\t9"
-
-        task = TableStringSortingTask(string)
-        task.perform()
-        sorted_string_test = task.result()
-
-        return self.assertEqual(sorted_string, sorted_string_test)
-
-    def test_table_str_sort_string_2(self):
-        string = "ab\t2a\t3\na\t53\t9\nab-\t8\t6"
-        sorted_string = "a\t8\t3\nab\t53\t6\nab-\t2a\t9"
-
-        task = TableStringSortingTask(string)
-        task.perform()
-        sorted_string_test = task.result()
-
-        return self.assertEqual(sorted_string, sorted_string_test)
 
 
 if __name__ == '__main__':

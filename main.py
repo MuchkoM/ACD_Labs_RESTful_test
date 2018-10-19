@@ -3,61 +3,7 @@ from collections import Iterable
 from copy import deepcopy
 from itertools import groupby
 
-from flask import request, Flask, Response
-from flask_restful import Api, Resource
-
-
-class TableStringSortingTask:
-    """
-    TableStringSorting performer
-    """
-
-    def __init__(self, table_string, separator_column=None, separator_row=None):
-        """
-        Init task param
-        :param table_string: String with table
-        :param separator_column:  Column separator
-        :param separator_row: Row separator
-        """
-        self.input_sting = table_string
-        self.converter = Converter(ArrayTable, separator_column=separator_column, separator_row=separator_row)
-        self.sorter = Sorter()
-        self.output_string = None
-        self.isSuccess = False
-
-    def perform(self):
-        """
-        Task performer
-        """
-        table = self.converter.to_table(self.input_sting)
-        table_sorted = self.sorter.sort(table)
-        self.output_string = self.converter.to_string(table_sorted)
-        self.isSuccess = True
-
-    def result(self):
-        """
-        Result of the task
-        :return: String with sorted table
-        """
-        return self.output_string
-
-
-class TableStringException(Exception):
-    """
-    Exception for TableStringSortingTask
-    """
-
-    def __init__(self, message=None, code=None, *args, **kwargs):
-        """
-        Init TableStringException
-        :param message: Error description
-        :param code: HTTP code of error
-        :param args: args for super
-        :param kwargs: kwargs for super
-        """
-        super().__init__(args, kwargs)
-        self.message = message or "TableString exception"
-        self.code = code or 422
+from flask import Flask, request, Response
 
 
 class Converter:
@@ -67,15 +13,15 @@ class Converter:
 
     def __init__(self, cls, separator_column=None, separator_row=None):
         """
-        Init class,separator setting for converter
+        Init class, separator setting for converter
         :param cls: Target class to convert
         :param separator_column:  Column separator
         :param separator_row: Row separator
         """
         if separator_column == '':
-            raise TableStringException("Column separator is empty")
+            raise ApiError("Column separator is empty")
         if separator_row == '':
-            raise TableStringException("Row separator is empty")
+            raise ApiError("Row separator is empty")
 
         self.separator_column = separator_column or '\n'
         self.separator_row = separator_row or '\t'
@@ -83,15 +29,15 @@ class Converter:
 
     def to_table(self, table_string):
         """
-        Convert string to NumPy 2D-array
+        Convert string to `class.Table`
         :param table_string: String to parse
-        :return: Valid NumPy 2D-array
-        :except Rise TableStringException with error message and status code
+        :return: Valid `class.Table`
+        :except Raise ApiError
         """
         if table_string is None:
-            raise TableStringException("Table_string is undefined")
+            raise ApiError("Table_string is undefined")
         if table_string == "":
-            raise TableStringException("Table_string is empty")
+            raise ApiError("Table_string is empty")
 
         array = []
         for str_col in table_string.split(self.separator_column):
@@ -99,9 +45,6 @@ class Converter:
             array.append(str_cells)
 
         table = self.cls(array)
-
-        if not table.is_valid():
-            raise TableStringException("Table is not valid")
 
         return table
 
@@ -120,7 +63,7 @@ class Converter:
 
 class Table:
     """
-    Abstract array
+    Abstract table
     """
     table = None
 
@@ -133,15 +76,14 @@ class Table:
 
     def to_array(self):
         """
-        Transform object to array
+        Transform table to array
         :return: Array representation
         """
-        pass
+        raise NotImplementedError()
 
     def is_valid(self):
         """
         Table valid check
-        :return: True is valid, False is not valid
         """
         if self.table is None:
             return False
@@ -157,12 +99,11 @@ class Table:
         :param axis: sort axis
         :param key: key function for sort
         """
-        pass
+        raise NotImplementedError()
 
     def __str__(self):
         """
-        String representation of self.table
-        :return: representation
+        String representation of table
         """
         return str(self.table)
 
@@ -235,54 +176,151 @@ class Sorter:
         return sorted_table
 
 
+class Format:
+    """
+    Abstract converter
+    """
+    content_type = None
+
+    def __init__(self, table_cls=ArrayTable):
+        self.table_cls = table_cls
+
+    def parse(self, parse_request):
+        raise NotImplementedError()
+
+    def render(self, render_table):
+        raise NotImplementedError()
+
+    def render_error(self, error):
+        raise NotImplementedError()
+
+
+class JsonFormat(Format):
+    content_type = 'application/json'
+
+    def parse(self, parse_request):
+        json_dict = parse_request.json
+
+        array = json_dict.get('table')
+
+        if not isinstance(array, list):
+            raise ApiError("Parse error")
+
+        if not array:
+            raise ApiError("Table is empty")
+
+        table = self.table_cls(array)
+        if not table.is_valid():
+            raise ApiError("Table is not valid")
+        return table
+
+    def render(self, table):
+        json_dict = dict()
+        json_dict['table'] = table.to_array()
+        return Response(json.dumps(json_dict), mimetype=self.content_type)
+
+    def render_error(self, error):
+        json_dict = dict()
+        json_dict['message'] = error.msg
+        out = json.dumps(json_dict)
+        return Response(out, mimetype=self.content_type, status=error.code)
+
+
+class TextFormat(Format):
+    content_type = 'text/plain'
+
+    def __init__(self, col_sep=None, row_sep=None, table_cls=ArrayTable):
+        super().__init__(table_cls)
+        self.converter = Converter(table_cls, separator_column=col_sep, separator_row=row_sep)
+
+    def parse(self, parse_request):
+        string = parse_request.data.decode(parse_request.charset)
+
+        if string == "":
+            raise ApiError("Table is empty")
+
+        table = self.converter.to_table(string)
+        if not table.is_valid():
+            raise ApiError("Table is not valid")
+        return table
+
+    def render(self, table):
+        out = self.converter.to_string(table)
+        return Response(out, mimetype=self.content_type)
+
+    def render_error(self, error):
+        return Response(error.msg, mimetype=self.content_type, status=error.code)
+
+
+class ApiError(Exception):
+    def __init__(self, msg, code=400, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.msg = msg
+        self.code = code
+
+
 app = Flask(__name__)
 
-api = Api(app)
+
+def parse_param(input_request):
+    param = dict()
+    param['format'] = input_request.args.get('format')
+    param['sort'] = request.args.get('sort')
+
+    separator_column = request.args.get('separator_column')
+    separator_column_escaped = request.args.get('separator_column_esc') == 'True'
+
+    separator_row = request.args.get('separator_row')
+    separator_row_escaped = request.args.get('separator_row_esc') == 'True'
+
+    if separator_column is not None and separator_column_escaped:
+        separator_column = bytearray(separator_column, encoding=request.charset).decode('unicode_escape')
+
+    if separator_row is not None and separator_row_escaped:
+        separator_row = bytearray(separator_row, encoding=request.charset).decode('unicode_escape')
+
+    param['separator_column'] = separator_column
+    param['separator_row'] = separator_row
+
+    return param
 
 
-@api.resource('/table_string', methods=["put"])
-class StringSort(Resource):
+@app.route('/table', methods=["PUT"])
+def sort():
+    param = parse_param(request)
 
-    def put(self):
-        """ Sorting table with request data"""
+    body_format = param['format']
+    sorting = param['sort']
 
-        content_type = request.content_type
+    formatter = None
+    try:
+        if body_format is None or body_format == 'text':
 
-        data = dict()
-        code = 200
-        if content_type == 'application/json':
-            data = request.json
-        elif content_type == 'text/plain':
-            data['table_string'] = request.data.decode('utf-8')
+            separator_column = param['separator_column']
+            separator_row = param['separator_row']
+
+            formatter = TextFormat(col_sep=separator_column, row_sep=separator_row)
+        elif body_format == 'json':
+            formatter = JsonFormat()
         else:
-            return Response("", status=400, mimetype=content_type)
+            raise ApiError("Unsupported format of body.")
 
-        table_string = data.get('table_string')
-        separator_row = data.get('separator_row')
-        separator_column = data.get('separator_column')
-
-        try:
-            task = TableStringSortingTask(table_string=table_string, separator_column=separator_column,
-                                          separator_row=separator_row)
-            task.perform()
-            if task.isSuccess:
-                data['table_string'] = task.result()
-            else:
-                raise TableStringException
-
-        except TableStringException as e:
-            data['message'] = e.message
-            code = e.code
-
-        if content_type == 'application/json':
-            result = json.dumps(data)
-        elif content_type == 'text/plain':
-            result = data['table_string'].encode('utf-8')
+        if sorting is None or sorting == 'default':
+            sorter = Sorter()
         else:
-            result = ""
-            code = 400
+            raise ApiError("Unsupported type of sorting.")
 
-        return Response(result, status=code, mimetype=content_type)
+        table = formatter.parse(request)
+        sorted_table = sorter.sort(table)
+        response = formatter.render(sorted_table)
+
+        return response
+
+    except ApiError as error:
+        if formatter is None:
+            return Response(error.msg, status=error.code)
+        else:
+            return formatter.render_error(error)
 
 
 if __name__ == '__main__':
