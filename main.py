@@ -3,7 +3,7 @@ from collections import Iterable
 from copy import deepcopy
 from itertools import groupby
 
-from flask import Flask, request, Response
+from flask import Flask, Response, request
 
 
 class Converter:
@@ -186,6 +186,11 @@ class Format:
         self.table_cls = table_cls
 
     def parse(self, parse_request):
+        """
+        Parse request to `class.Table`
+        :param parse_request:
+        :return:
+        """
         raise NotImplementedError()
 
     def render(self, render_table):
@@ -204,7 +209,14 @@ class JsonFormat(Format):
         array = json_dict.get('table')
 
         if not isinstance(array, list):
-            raise ApiError("Parse error")
+            raise ApiError("Table is not array")
+        if not isinstance(array[0], list):
+            raise ApiError("Table is 2D array")
+
+        for column in array:
+            for cell in column:
+                if not isinstance(cell, (str, int, float)):
+                    raise ApiError("Table cell type is not valid")
 
         if not array:
             raise ApiError("Table is empty")
@@ -264,20 +276,20 @@ app = Flask(__name__)
 
 def parse_param(input_request):
     param = dict()
-    param['format'] = input_request.args.get('format')
-    param['sort'] = request.args.get('sort')
+    param['accept'] = input_request.args.get('accept')
+    param['sort'] = input_request.args.get('sort')
 
-    separator_column = request.args.get('separator_column')
-    separator_column_escaped = request.args.get('separator_column_esc') == 'True'
+    separator_column = input_request.args.get('separator_column')
+    separator_column_escaped = input_request.args.get('separator_column_esc') == 'True'
 
-    separator_row = request.args.get('separator_row')
-    separator_row_escaped = request.args.get('separator_row_esc') == 'True'
+    separator_row = input_request.args.get('separator_row')
+    separator_row_escaped = input_request.args.get('separator_row_esc') == 'True'
 
     if separator_column is not None and separator_column_escaped:
-        separator_column = bytearray(separator_column, encoding=request.charset).decode('unicode_escape')
+        separator_column = bytearray(separator_column, encoding=input_request.charset).decode('unicode_escape')
 
     if separator_row is not None and separator_row_escaped:
-        separator_row = bytearray(separator_row, encoding=request.charset).decode('unicode_escape')
+        separator_row = bytearray(separator_row, encoding=input_request.charset).decode('unicode_escape')
 
     param['separator_column'] = separator_column
     param['separator_row'] = separator_row
@@ -289,18 +301,18 @@ def parse_param(input_request):
 def sort():
     param = parse_param(request)
 
-    body_format = param['format']
+    accept = param['accept']
     sorting = param['sort']
 
     formatter = None
     try:
-        if body_format is None or body_format == 'text':
+        if accept is None or accept == 'text/plain':
 
             separator_column = param['separator_column']
             separator_row = param['separator_row']
 
             formatter = TextFormat(col_sep=separator_column, row_sep=separator_row)
-        elif body_format == 'json':
+        elif accept == 'application/json':
             formatter = JsonFormat()
         else:
             raise ApiError("Unsupported format of body.")
@@ -318,7 +330,7 @@ def sort():
 
     except ApiError as error:
         if formatter is None:
-            return Response(error.msg, status=error.code)
+            return Response(error.msg, status=error.code, mimetype='text/plain')
         else:
             return formatter.render_error(error)
 
