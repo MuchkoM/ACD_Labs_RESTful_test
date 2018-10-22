@@ -1,0 +1,120 @@
+openapi: 3.0.1
+info:
+  title: Table Sort API
+  description: REST API for sorting table
+  version: "0.1"
+  termsOfService: 'http://swagger.io/terms/'
+  contact:
+    email: muchkom@gmail.com
+  license:
+    name: Apache 2.0
+    url: 'http://www.apache.org/licenses/LICENSE-2.0.html'
+servers:
+  - url: 'http://127.0.0.1:5000'
+tags:
+  - name: table
+    description: Main api path
+    externalDocs:
+      description: Find out more
+      url: 'http://swagger.io'
+paths:
+  /table:
+    put:
+      tags:
+        - table
+      description: Sort table in request
+      parameters:
+        - name: accept
+          description: Type of request/response
+          in: query
+          schema:
+            type: string
+          example: 
+            'application/json'
+        - name: sort
+          description: Type of sorting
+          in: query
+          schema:
+            type: string
+          example: default
+        - name: separator_column
+          description: "Seporator for column in table"
+          in: query
+          schema:
+            type: string
+          example: '\n'
+        - name: separator_column_esc
+          in: query
+          description: "Seporator column is escaped"
+          schema:
+            type: boolean
+          example: True
+        - name: separator_row
+          description: "Seporator for row in table"
+          in: query
+          schema:
+            type: string
+          example: 
+            '\t'
+        - name: separator_row_esc
+          in: query
+          description: "Seporator row is escaped"
+          schema:
+            type: boolean
+          example: True
+      requestBody:
+        $ref: '#/components/requestBodies/Table'
+      responses:
+        '200':
+          description: Sorted table
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TableJson'
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/TableText'
+        '400':
+          description: Error messages
+          content:
+            text/plain:
+              schema:
+                $ref: '#/components/schemas/ErrorText'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorJson'
+components:
+  schemas:
+    TableText:
+      type: string
+      example: "1\t2\t3\n4\t5\t6\n7\t8\t9"
+    ErrorText:
+      type: string
+      example: 'Table is not valid'
+    TableJson:
+      type: object
+      properties:
+        table:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+      example: {'table': [[1, 8, 9], [4, 53, 9], [7, '2a', '-']]}
+    ErrorJson:
+      type: object
+      properties:
+        message:
+          type: string
+      example: { 'message':'Table is not valid'}
+  requestBodies:
+    Table:
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/TableJson'
+        text/plain:
+          schema:
+            $ref: '#/components/schemas/TableText'
+      description: Table for sorting
+      required: true
